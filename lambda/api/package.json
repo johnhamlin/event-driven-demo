@@ -8,9 +8,11 @@
   "dependencies": {
     "@apollo/server": "^4.10.0",
     "@as-integrations/aws-lambda": "^3.1.0",
+    "@aws-sdk/client-dynamodb": "^3.913.0",
     "@aws-sdk/client-secrets-manager": "^3.0.0",
-    "pg": "^8.11.0",
-    "graphql": "^16.8.0"
+    "@aws-sdk/lib-dynamodb": "^3.913.0",
+    "graphql": "^16.8.0",
+    "pg": "^8.11.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

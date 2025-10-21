@@ -8,6 +8,8 @@ import {
   handlers,
 } from "@as-integrations/aws-lambda";
 import { Client } from "pg";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 interface CreateWorkOrderArgs {
   orgId: string;
@@ -54,6 +56,7 @@ const typeDefs = `#graphql
   type Query {
     healthCheck: String!
     listCustomers: [Customer!]!
+    workOrdersForOrg(orgId: String!): [WorkOrder!]!
   }
 
   type Mutation {
@@ -76,6 +79,9 @@ async function createDBClient() {
   return client;
 }
 
+const dynamoClient = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
+
 const resolvers = {
   Query: {
     healthCheck: () => "API is healthy!",
@@ -85,6 +91,32 @@ const resolvers = {
       const result = await client.query("SELECT * FROM customers");
       await client.end();
       return result.rows;
+    },
+
+    workOrdersForOrg: async (_: any, args: { orgId: string }) => {
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: process.env.WORK_ORDER_TABLE,
+          KeyConditionExpression: "pk = :pk",
+          ExpressionAttributeValues: {
+            ":pk": `ORG#${args.orgId}`,
+          },
+        }),
+      );
+
+      return (
+        result.Items?.map((item) => ({
+          id: item.workOrderId,
+          orgId: item.orgId,
+          customerId: item.customerId,
+          status: item.status,
+          title: item.title,
+          description: item.description,
+          address: item.address,
+          scheduledAt: item.scheduledAt,
+          createdAt: item.createdAt,
+        })) || []
+      );
     },
   },
 

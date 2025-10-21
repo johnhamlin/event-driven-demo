@@ -16,8 +16,7 @@ export class BuildOpsStack extends cdk.Stack {
     // ============================================
     // DATABASE CONNECTION (Neon)
     // ============================================
-    const DATABASE_URL =
-      "postgresql://neondb_owner:npg_sTIjxULM9W2b@ep-weathered-hall-ahl34wcd-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+    const DATABASE_URL = process.env.DATABASE_URL || "missing";
 
     // ============================================
     // 1. DynamoDB - Fast Read Projections
@@ -74,15 +73,19 @@ export class BuildOpsStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(10),
       environment: {
         DATABASE_URL,
+        WORK_ORDER_TABLE: workOrderTable.tableName,
         NODE_OPTIONS: "--enable-source-maps",
       },
     });
+
+    workOrderTable.grantReadData(apiLambda);
 
     const apiUrl = apiLambda.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
       cors: {
         allowedOrigins: ["*"],
         allowedMethods: [lambda.HttpMethod.POST],
+        allowedHeaders: ["content-type"],
       },
     });
 

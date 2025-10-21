@@ -26,8 +26,101 @@ interface EventEnvelope {
   data: any;
 }
 
+interface WorkOrderData {
+  id: string;
+  org_id: string;
+  customer_id: string;
+  status: string;
+  title: string;
+  description: string | null;
+  address: string | null;
+  scheduled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface WorkOrderProjection {
+  pk: string;
+  sk: string;
+  entityType: string;
+  workOrderId: string;
+  orgId: string;
+  customerId: string;
+  status: string;
+  title: string;
+  description: string | null;
+  address: string | null;
+  scheduledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  projectedAt: string;
+  sourceEventId: string;
+  sourceEventType: string;
+}
+
+interface ProcessedEvent {
+  eventId: string;
+  eventType: string;
+  processedAt: string;
+  ttl: number;
+}
+
 async function processEvent(envelope: EventEnvelope) {
   console.log(`Processing event: ${envelope.id} (${envelope.type})`);
+  const result = await docClient.send(
+    new GetCommand({
+      TableName: PROCESSED_EVENTS_TABLE,
+      Key: { eventId: envelope.id },
+    }),
+  );
+
+  if (result.Item) {
+    console.log(`Event ${envelope.id} already processed, skipping`);
+    return;
+  }
+
+  if (envelope.type === "WorkOrderCreated") {
+    const data: WorkOrderData = envelope.data;
+    const dbItem: WorkOrderProjection = {
+      pk: `ORG#${data.org_id}`,
+      sk: `STATUS#${data.status}#TS#${new Date(data.created_at).toISOString()}#WO#${data.id}`,
+      address: data.address,
+      createdAt: new Date(data.created_at).toISOString(),
+      customerId: data.customer_id,
+      description: data.description,
+      entityType: envelope.aggregateType,
+      orgId: data.org_id,
+      projectedAt: new Date().toISOString(),
+      scheduledAt: data.scheduled_at,
+      sourceEventId: envelope.id,
+      sourceEventType: envelope.type,
+      status: data.status,
+      title: data.title,
+      updatedAt: new Date(data.updated_at).toISOString(),
+      workOrderId: data.id,
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: WORK_ORDER_TABLE,
+        Item: dbItem,
+      }),
+    );
+
+    const processedEvent: ProcessedEvent = {
+      eventId: envelope.id,
+      eventType: envelope.type,
+      processedAt: new Date().toISOString(),
+      ttl: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: PROCESSED_EVENTS_TABLE,
+        Item: processedEvent,
+      }),
+    );
+  }
 
   // ============================================
   // TODO: Implement idempotent event processing
@@ -68,8 +161,6 @@ async function processEvent(envelope: EventEnvelope) {
   // - What if you need to update a work order's status? (Hint: delete old item, insert new)
 
   // Your code here
-
-  throw new Error("TODO: Implement event processing logic");
 }
 
 export const handler = async (event: SQSEvent) => {
@@ -89,8 +180,9 @@ export const handler = async (event: SQSEvent) => {
 
       // Then process it
       // await processEvent(envelope);
-
-      throw new Error("TODO: Implement SQS message parsing");
+      const snsMessage = JSON.parse(record.body);
+      const envelope: EventEnvelope = JSON.parse(snsMessage.Message);
+      await processEvent(envelope);
     } catch (error) {
       console.error("Error processing record:", error);
       console.error("Record body:", record.body);

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuildOps Event-Driven Demo</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .architecture-flow {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .flow-steps {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .flow-step {
+            flex: 1;
+            min-width: 100px;
+            text-align: center;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: #667eea;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 968px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #48bb78;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .btn-secondary:hover {
+            background: #38a169;
+        }
+
+        .work-orders-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .work-order-card {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .work-order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .work-order-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: #48bb78;
+            color: white;
+        }
+
+        .work-order-details {
+            font-size: 0.9rem;
+            color: #718096;
+            line-height: 1.6;
+        }
+
+        .work-order-details p {
+            margin: 5px 0;
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .config-banner {
+            background: #fef5e7;
+            border: 2px solid #f39c12;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #7d6608;
+        }
+
+        .config-banner strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // IMPORTANT: Replace this with your actual API endpoint!
+    const API_ENDPOINT = 'https://yl6j4gpn5o4uraqicafwpfdwxq0nkfjd.lambda-url.us-east-1.on.aws/';
+    const ORG_ID = 'plumbingCo123';
+
+    function App() {
+        const [customers, setCustomers] = useState([]);
+        const [workOrders, setWorkOrders] = useState([]);
+        const [loading, setLoading] = useState(false);
+        const [creating, setCreating] = useState(false);
+        const [successMessage, setSuccessMessage] = useState('');
+        const [errorMessage, setErrorMessage] = useState('');
+
+        const [formData, setFormData] = useState({
+            customerId: '',
+            title: '',
+            description: '',
+            address: '',
+            scheduledAt: ''
+        });
+
+        useEffect(() => {
+            loadCustomers();
+            loadWorkOrders();
+        }, []);
+
+        const graphqlRequest = async (query) => {
+            const response = await fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const result = await response.json();
+            if (result.errors) {
+                throw new Error(result.errors[0].message);
+            }
+            return result.data;
+        };
+
+        const loadCustomers = async () => {
+            try {
+                const data = await graphqlRequest('{ listCustomers { id name email } }');
+                setCustomers(data.listCustomers);
+            } catch (error) {
+                console.error('Error loading customers:', error);
+            }
+        };
+
+        const loadWorkOrders = async () => {
+            setLoading(true);
+            try {
+                const data = await graphqlRequest(`{ workOrdersForOrg(orgId: "${ORG_ID}") { id title description address status createdAt } }`);
+                setWorkOrders(data.workOrdersForOrg.reverse());
+            } catch (error) {
+                console.error('Error loading work orders:', error);
+                setErrorMessage('Failed to load work orders');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const handleSubmit = async (e) => {
+            e.preventDefault();
+            setCreating(true);
+            setSuccessMessage('');
+            setErrorMessage('');
+
+            try {
+                const mutation = `
+                        mutation {
+                            createWorkOrder(
+                                orgId: "${ORG_ID}"
+                                customerId: "${formData.customerId}"
+                                title: "${formData.title}"
+                                description: "${formData.description}"
+                                address: "${formData.address}"
+                                ${formData.scheduledAt ? `scheduledAt: "${formData.scheduledAt}"` : ''}
+                            ) {
+                                id
+                                title
+                                status
+                            }
+                        }
+                    `;
+
+                await graphqlRequest(mutation);
+                setSuccessMessage('✓ Work order created! Wait ~60 seconds, then refresh to see it in DynamoDB.');
+
+                // Reset form
+                setFormData({
+                    customerId: '',
+                    title: '',
+                    description: '',
+                    address: '',
+                    scheduledAt: ''
+                });
+
+            } catch (error) {
+                setErrorMessage('Error: ' + error.message);
+            } finally {
+                setCreating(false);
+            }
+        };
+
+        if (API_ENDPOINT === 'YOUR_API_ENDPOINT_HERE') {
+            return (
+                <div className="container">
+                    <div className="card" style={{marginTop: '100px'}}>
+                        <h2>⚠️ Configuration Required</h2>
+                        <div className="config-banner">
+                            <strong>Please update the API endpoint:</strong>
+                            <p>Open this HTML file in a text editor and replace <code>YOUR_API_ENDPOINT_HERE</code> with your actual Lambda Function URL from the CDK outputs.</p>
+                            <p style={{marginTop: '10px'}}>It should look like: <code>https://xxxxx.lambda-url.us-east-1.on.aws/</code></p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="container">
+                <div className="header">
+                    <h1>🏗️ BuildOps Event-Driven Demo</h1>
+                    <p>Watch events flow: API → Postgres → Outbox → SNS → SQS → DynamoDB</p>
+                </div>
+
+                <div className="architecture-flow">
+                    <div className="flow-steps">
+                        <div className="flow-step">GraphQL API</div>
+                        <div className="flow-arrow">→</div>
+                        <div className="flow-step">Postgres<br/>(Outbox)</div>
+                        <div className="flow-arrow">→</div>
+                        <div className="flow-step">Publisher<br/>(10 secs)</div>
+                        <div className="flow-arrow">→</div>
+                        <div className="flow-step">SNS</div>
+                        <div className="flow-arrow">→</div>
+                        <div className="flow-step">SQS</div>
+                        <div className="flow-arrow">→</div>
+                        <div className="flow-step">Projector</div>
+                        <div className="flow-arrow">→</div>
+                        <div className="flow-step">DynamoDB</div>
+                    </div>
+                </div>
+
+                <div className="main-content">
+                    <div className="card">
+                        <h2>Create Work Order</h2>
+
+                        {successMessage && (
+                            <div className="success-message">{successMessage}</div>
+                        )}
+
+                        {errorMessage && (
+                            <div className="error-message">{errorMessage}</div>
+                        )}
+
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Customer</label>
+                                <select
+                                    value={formData.customerId}
+                                    onChange={e => setFormData({...formData, customerId: e.target.value})}
+                                    required
+                                >
+                                    <option value="">Select a customer...</option>
+                                    {customers.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.name} ({c.email})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Title</label>
+                                <input
+                                    type="text"
+                                    value={formData.title}
+                                    onChange={e => setFormData({...formData, title: e.target.value})}
+                                    placeholder="Fix leaky faucet"
+                                    required
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Description</label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={e => setFormData({...formData, description: e.target.value})}
+                                    placeholder="Kitchen sink is dripping..."
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Address</label>
+                                <input
+                                    type="text"
+                                    value={formData.address}
+                                    onChange={e => setFormData({...formData, address: e.target.value})}
+                                    placeholder="123 Main St"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Scheduled Date (Optional)</label>
+                                <input
+                                    type="datetime-local"
+                                    value={formData.scheduledAt}
+                                    onChange={e => setFormData({...formData, scheduledAt: e.target.value})}
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="btn btn-primary"
+                                disabled={creating}
+                            >
+                                {creating ? 'Creating...' : 'Create Work Order'}
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="card">
+                        <h2>Work Orders (from DynamoDB)</h2>
+
+                        <button
+                            onClick={loadWorkOrders}
+                            className="btn btn-secondary"
+                            disabled={loading}
+                        >
+                            {loading ? 'Refreshing...' : '🔄 Refresh'}
+                        </button>
+
+                        {loading ? (
+                            <div className="loading">Loading work orders...</div>
+                        ) : workOrders.length === 0 ? (
+                            <div className="empty-state">
+                                <div className="empty-state-icon">📋</div>
+                                <p>No work orders yet.</p>
+                                <p style={{fontSize: '0.9rem', marginTop: '10px'}}>
+                                    Create one and wait ~60 seconds for it to appear!
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="work-orders-list">
+                                {workOrders.map(wo => (
+                                    <div key={wo.id} className="work-order-card">
+                                        <div className="work-order-header">
+                                            <div className="work-order-title">{wo.title}</div>
+                                            <div className="status-badge">{wo.status}</div>
+                                        </div>
+                                        <div className="work-order-details">
+                                            {wo.description && <p><strong>Description:</strong> {wo.description}</p>}
+                                            {wo.address && <p><strong>Address:</strong> {wo.address}</p>}
+                                            <p><strong>Created:</strong> {new Date(wo.createdAt).toLocaleString()}</p>
+                                            <p style={{fontSize: '0.75rem', marginTop: '8px', opacity: 0.7}}>
+                                                ID: {wo.id}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
