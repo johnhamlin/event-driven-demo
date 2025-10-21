@@ -214,3 +214,11 @@ dist
 .cdk.staging/
 cdk.out/
 
+/bin/buildops.d.ts
+/bin/buildops.js
+/lambda/api/index.d.ts
+/lambda/projector/index.d.ts
+/lambda/publisher/index.d.ts
+/lambda/api/index.js
+/lambda/projector/index.js
+/lambda/publisher/index.js
