@@ -6,8 +6,8 @@
   "directories": {
     "lib": "lib"
   },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "scripts": {
+      "build-lambdas": "cd lambda/api && npm run build && cd ../publisher && npm run build && cd ../projector && npm run build && cd ../.."
   },
   "keywords": [],
   "author": "",

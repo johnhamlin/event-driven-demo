@@ -4,7 +4,7 @@ import { BuildOpsStack } from "../lib/buildops-stack";
 
 const app = new cdk.App();
 
-new BuildOpsStack(app, "BuildOpsStack", {
+new BuildOpsStack(app, "BuildOpsStackV2", {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION,
