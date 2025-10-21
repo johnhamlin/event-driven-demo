@@ -9,6 +9,28 @@ import {
 } from "@as-integrations/aws-lambda";
 import { Client } from "pg";
 
+interface CreateWorkOrderArgs {
+  orgId: string;
+  customerId: string;
+  title: string;
+  description?: string;
+  address?: string;
+  scheduledAt?: string;
+}
+
+interface WorkOrder {
+  id: string;
+  org_id: string;
+  customer_id: string;
+  status: string;
+  title: string;
+  description: string | null;
+  address: string | null;
+  scheduled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 const typeDefs = `#graphql
   type Customer {
     id: ID!
@@ -67,7 +89,7 @@ const resolvers = {
   },
 
   Mutation: {
-    createWorkOrder: async (_: any, args: any) => {
+    createWorkOrder: async (_: any, args: CreateWorkOrderArgs) => {
       const client = await createDBClient();
 
       try {
@@ -97,12 +119,49 @@ const resolvers = {
         // - If anything fails, rollback the transaction
         // - Make sure to close the database connection in finally block
 
-        // Your code here
+        await client.query("BEGIN");
+        const res = await client.query<WorkOrder>(
+          `INSERT INTO work_orders (org_id, customer_id, title, description, address, scheduled_at)
+           VALUES($1, $2, $3, $4, $5, $6) 
+           RETURNING *`,
+          [
+            args.orgId,
+            args.customerId,
+            args.title,
+            args.description,
+            args.address,
+            args.scheduledAt,
+          ],
+        );
+        const createdWorkOrder = res.rows[0];
 
-        throw new Error("TODO: Implement createWorkOrder mutation");
-      } catch (error) {
-        console.error("Error creating work order:", error);
-        throw error;
+        await client.query<WorkOrder>(
+          `INSERT INTO outbox (event_type, aggregate_id, aggregate_type, payload)
+            VALUES ($1, $2, $3, $4)`,
+          [
+            "WorkOrderCreated",
+            createdWorkOrder.id,
+            "WorkOrder",
+            JSON.stringify(createdWorkOrder),
+          ],
+        );
+        await client.query("COMMIT");
+
+        return {
+          ...createdWorkOrder,
+          createdAt: new Date(createdWorkOrder.created_at).toISOString(),
+          updatedAt: new Date(createdWorkOrder.updated_at).toISOString(),
+          orgId: createdWorkOrder.org_id,
+          customerId: createdWorkOrder.customer_id,
+        };
+      } catch (creationError) {
+        console.error("Error creating work order:", creationError);
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Error rolling back transaction:", rollbackError);
+        }
+        throw creationError;
       } finally {
         await client.end();
       }
