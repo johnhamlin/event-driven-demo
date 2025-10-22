@@ -7,6 +7,8 @@ import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as eventsources from "aws-cdk-lib/aws-lambda-event-sources";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+
 import { Construct } from "constructs";
 
 export class BuildOpsStack extends cdk.Stack {
@@ -66,15 +68,18 @@ export class BuildOpsStack extends cdk.Stack {
     // ============================================
 
     // --- API Lambda (GraphQL) ---
-    const apiLambda = new lambda.Function(this, "ApiLambda", {
+    const apiLambda = new NodejsFunction(this, "ApiLambda", {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset("lambda/api"),
+      entry: "lambda/api/index.ts",
+      handler: "handler",
       timeout: cdk.Duration.seconds(10),
       environment: {
         DATABASE_URL,
         WORK_ORDER_TABLE: workOrderTable.tableName,
         NODE_OPTIONS: "--enable-source-maps",
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
       },
     });
 
@@ -90,14 +95,17 @@ export class BuildOpsStack extends cdk.Stack {
     });
 
     // --- Outbox Publisher Lambda ---
-    const publisherLambda = new lambda.Function(this, "PublisherLambda", {
+    const publisherLambda = new NodejsFunction(this, "PublisherLambda", {
+      entry: "lambda/publisher/index.ts",
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset("lambda/publisher"),
+      handler: "handler",
       timeout: cdk.Duration.seconds(30),
       environment: {
         DATABASE_URL,
         SNS_TOPIC_ARN: eventTopic.topicArn,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
       },
     });
 
@@ -109,14 +117,17 @@ export class BuildOpsStack extends cdk.Stack {
     publisherRule.addTarget(new targets.LambdaFunction(publisherLambda));
 
     // --- Projector Lambda ---
-    const projectorLambda = new lambda.Function(this, "ProjectorLambda", {
+    const projectorLambda = new NodejsFunction(this, "ProjectorLambda", {
+      entry: "lambda/projector/index.ts",
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset("lambda/projector"),
+      handler: "handler",
       timeout: cdk.Duration.seconds(30),
       environment: {
         WORK_ORDER_TABLE: workOrderTable.tableName,
         PROCESSED_EVENTS_TABLE: processedEventsTable.tableName,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
       },
     });
 

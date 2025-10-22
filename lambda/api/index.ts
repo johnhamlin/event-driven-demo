@@ -10,6 +10,12 @@ import {
 import { Client } from "pg";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import Logger from "../shared/logger";
+import crypto from "crypto";
+
+interface ApolloContext {
+  requestId: string;
+}
 
 interface CreateWorkOrderArgs {
   orgId: string;
@@ -121,7 +127,18 @@ const resolvers = {
   },
 
   Mutation: {
-    createWorkOrder: async (_: any, args: CreateWorkOrderArgs) => {
+    createWorkOrder: async (
+      _: any,
+      args: CreateWorkOrderArgs,
+      context: ApolloContext,
+    ) => {
+      const traceId = crypto.randomUUID();
+      const logger = new Logger("API", context.requestId);
+      logger.info("Creating work order", {
+        traceId,
+        orgId: args.orgId,
+        customerId: args.customerId,
+      });
       const client = await createDBClient();
 
       try {
@@ -153,8 +170,8 @@ const resolvers = {
 
         await client.query("BEGIN");
         const res = await client.query<WorkOrder>(
-          `INSERT INTO work_orders (org_id, customer_id, title, description, address, scheduled_at)
-           VALUES($1, $2, $3, $4, $5, $6) 
+          `INSERT INTO work_orders (org_id, customer_id, title, description, address, scheduled_at, trace_id)
+           VALUES($1, $2, $3, $4, $5, $6, $7) 
            RETURNING *`,
           [
             args.orgId,
@@ -163,22 +180,30 @@ const resolvers = {
             args.description,
             args.address,
             args.scheduledAt,
+            traceId,
           ],
         );
         const createdWorkOrder = res.rows[0];
 
         await client.query<WorkOrder>(
-          `INSERT INTO outbox (event_type, aggregate_id, aggregate_type, payload)
-            VALUES ($1, $2, $3, $4)`,
+          `INSERT INTO outbox (event_type, aggregate_id, aggregate_type, payload, trace_id)
+            VALUES ($1, $2, $3, $4, $5)`,
           [
             "WorkOrderCreated",
             createdWorkOrder.id,
             "WorkOrder",
             JSON.stringify(createdWorkOrder),
+            traceId,
           ],
         );
         await client.query("COMMIT");
 
+        logger.info("Work order successfully created", {
+          workOrderId: createdWorkOrder.id,
+          traceId,
+          orgId: args.orgId,
+          customerId: args.customerId,
+        });
         return {
           ...createdWorkOrder,
           createdAt: new Date(createdWorkOrder.created_at).toISOString(),
@@ -187,11 +212,37 @@ const resolvers = {
           customerId: createdWorkOrder.customer_id,
         };
       } catch (creationError) {
-        console.error("Error creating work order:", creationError);
+        const errorMessage =
+          creationError instanceof Error
+            ? creationError.message
+            : String(creationError);
+        const errorStack =
+          creationError instanceof Error ? creationError.stack : undefined;
+
+        logger.error(`Error creating work order`, {
+          traceId,
+          orgId: args.orgId,
+          customerId: args.customerId,
+          error: errorMessage,
+          stack: errorStack,
+        });
         try {
           await client.query("ROLLBACK");
         } catch (rollbackError) {
-          console.error("Error rolling back transaction:", rollbackError);
+          const errorMessage =
+            rollbackError instanceof Error
+              ? rollbackError.message
+              : String(rollbackError);
+          const errorStack =
+            rollbackError instanceof Error ? rollbackError.stack : undefined;
+
+          logger.error(`Error rolling back transaction`, {
+            traceId,
+            orgId: args.orgId,
+            customerId: args.customerId,
+            error: errorMessage,
+            stack: errorStack,
+          });
         }
         throw creationError;
       } finally {
@@ -201,7 +252,7 @@ const resolvers = {
   },
 };
 
-const server = new ApolloServer({
+const server = new ApolloServer<ApolloContext>({
   typeDefs,
   resolvers,
 });
@@ -209,4 +260,9 @@ const server = new ApolloServer({
 export const handler = startServerAndCreateLambdaHandler(
   server,
   handlers.createAPIGatewayProxyEventV2RequestHandler(),
+  {
+    context: async ({ context }) => ({
+      requestId: context.awsRequestId,
+    }),
+  },
 );
