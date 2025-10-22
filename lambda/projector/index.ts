@@ -7,22 +7,14 @@ import {
   GetCommand,
   PutCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { EventEnvelope } from "../publisher";
+import Logger from "../shared/logger";
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const WORK_ORDER_TABLE = process.env.WORK_ORDER_TABLE!;
 const PROCESSED_EVENTS_TABLE = process.env.PROCESSED_EVENTS_TABLE!;
-
-interface EventEnvelope {
-  id: string;
-  type: string;
-  version: number;
-  occurredAt: string;
-  aggregateId: string;
-  aggregateType: string;
-  data: any;
-}
 
 interface WorkOrderData {
   id: string;
@@ -63,8 +55,7 @@ interface ProcessedEvent {
   ttl: number;
 }
 
-async function processEvent(envelope: EventEnvelope) {
-  console.log(`Processing event: ${envelope.id} (${envelope.type})`);
+async function processEvent(envelope: EventEnvelope, logger: Logger) {
   const result = await docClient.send(
     new GetCommand({
       TableName: PROCESSED_EVENTS_TABLE,
@@ -73,7 +64,12 @@ async function processEvent(envelope: EventEnvelope) {
   );
 
   if (result.Item) {
-    console.log(`Event ${envelope.id} already processed, skipping`);
+    logger.info(`Event ${envelope.id} already processed, skipping`, {
+      traceId: envelope.traceId,
+      eventId: envelope.id,
+      eventType: envelope.type,
+      workOrderId: envelope.aggregateId,
+    });
     return;
   }
 
@@ -118,20 +114,38 @@ async function processEvent(envelope: EventEnvelope) {
         Item: processedEvent,
       }),
     );
+    logger.info(`Event ${envelope.id} successfully processed`, {
+      traceId: envelope.traceId,
+      eventId: envelope.id,
+      eventType: envelope.type,
+      workOrderId: envelope.aggregateId,
+    });
   }
 }
 
-export const handler = async (event: SQSEvent) => {
-  console.log(`Received ${event.Records.length} messages from SQS`);
+export const handler: AWSLambda.Handler = async (event: SQSEvent, context) => {
+  const logger = new Logger("projector", context.awsRequestId);
+  logger.info(`Received ${event.Records.length} messages from SQS`);
 
   for (const record of event.Records) {
+    let traceId: string | undefined;
     try {
       const snsMessage = JSON.parse(record.body);
       const envelope: EventEnvelope = JSON.parse(snsMessage.Message);
-      await processEvent(envelope);
+      traceId = envelope.traceId;
+
+      await processEvent(envelope, logger);
     } catch (error) {
-      console.error("Error processing record:", error);
-      console.error("Record body:", record.body);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error(`Error processing event record`, {
+        traceId,
+        recordBody: record.body,
+        error: errorMessage,
+        stack: errorStack,
+      });
+
       // Re-throw so SQS knows this message failed
       // After maxReceiveCount retries, it goes to DLQ
       throw error;

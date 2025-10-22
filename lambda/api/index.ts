@@ -37,6 +37,18 @@ interface WorkOrder {
   updated_at: string;
 }
 
+export interface OutboxEvent {
+  id: string;
+  event_type: string;
+  aggregate_id: string;
+  aggregate_type: string;
+  payload: any; // This is JSONB, so it's already parsed
+  occurred_at: Date;
+  published_at: Date | null;
+  version: number;
+  trace_id: crypto.UUID;
+}
+
 const typeDefs = `#graphql
   type Customer {
     id: ID!
@@ -131,7 +143,7 @@ const resolvers = {
       context: ApolloContext,
     ) => {
       const traceId = crypto.randomUUID();
-      const logger = new Logger("API", context.requestId);
+      const logger = new Logger("api", context.requestId);
       logger.info("Creating work order", {
         traceId,
         orgId: args.orgId,
@@ -157,7 +169,7 @@ const resolvers = {
         );
         const createdWorkOrder = res.rows[0];
 
-        await client.query<WorkOrder>(
+        await client.query<OutboxEvent>(
           `INSERT INTO outbox (event_type, aggregate_id, aggregate_type, payload, trace_id)
             VALUES ($1, $2, $3, $4, $5)`,
           [

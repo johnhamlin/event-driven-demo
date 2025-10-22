@@ -2,19 +2,11 @@
 
 import { Client } from "pg";
 import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
+import { OutboxEvent } from "../api";
+import crypto from "crypto";
+import Logger from "../shared/logger";
 
-interface OutboxEvent {
-  id: string;
-  event_type: string;
-  aggregate_id: string;
-  aggregate_type: string;
-  payload: any; // This is JSONB, so it's already parsed
-  occurred_at: Date;
-  published_at: Date | null;
-  version: number;
-}
-
-interface EventEnvelope {
+export interface EventEnvelope {
   id: string;
   type: string;
   version: number;
@@ -22,6 +14,7 @@ interface EventEnvelope {
   aggregateId: string;
   aggregateType: string;
   data: any;
+  traceId: crypto.UUID;
 }
 
 const snsClient = new SNSClient({});
@@ -34,8 +27,9 @@ async function createDBClient() {
   return client;
 }
 
-export const handler = async () => {
+export const handler: AWSLambda.Handler = async (_, context) => {
   const client = await createDBClient();
+  const logger = new Logger("publisher", context.awsRequestId);
 
   try {
     const res = await client.query<OutboxEvent>(`
@@ -50,7 +44,7 @@ export const handler = async () => {
       };
     }
 
-    console.log(`Found ${res.rows.length} unpublished events`);
+    logger.info(`Found ${res.rows.length} unpublished events`);
 
     for (const row of res.rows) {
       try {
@@ -62,6 +56,7 @@ export const handler = async () => {
           occurredAt: new Date(row.occurred_at).toISOString(),
           type: row.event_type,
           version: row.version,
+          traceId: row.trace_id,
         };
 
         await snsClient.send(
@@ -81,9 +76,23 @@ export const handler = async () => {
           `UPDATE outbox SET published_at = NOW() WHERE id = $1`,
           [row.id],
         );
-        console.log(`Successfully published event ${row.id}`);
+        logger.info(`Successfully published event ${row.id}`, {
+          traceId: row.trace_id,
+          eventType: row.event_type,
+          workOrderId: row.aggregate_id,
+        });
       } catch (error) {
-        console.error(`Failed to publish event ${row.id}: `, error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+
+        logger.error(`Failed to publish event ${row.id}: `, {
+          traceId: row.trace_id,
+          eventType: row.event_type,
+          workOrderId: row.aggregate_id,
+          error: errorMessage,
+          stack: errorStack,
+        });
       }
     }
 
@@ -92,7 +101,12 @@ export const handler = async () => {
       message: `Processed ${res.rows.length} events`,
     };
   } catch (error) {
-    console.error("Error in publisher:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    logger.error("Error in publisher", {
+      error: errorMessage,
+      stack: errorStack,
+    });
     throw error;
   } finally {
     await client.end();

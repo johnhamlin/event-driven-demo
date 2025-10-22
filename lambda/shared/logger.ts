@@ -23,10 +23,10 @@ class Logger {
   ) {
     const log: Record<string, unknown> = {
       timestamp: new Date().toISOString(),
-      service: this.service,
-      requestId: this.requestId,
       level,
+      service: this.service,
       message,
+      requestId: this.requestId,
       ...context,
     };
     console.log(log);
