@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
 import { BuildOpsStack } from "../lib/buildops-stack";
+import "dotenv/config";
 
 const app = new cdk.App();
 
