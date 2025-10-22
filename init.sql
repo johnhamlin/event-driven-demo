@@ -1,4 +1,3 @@
--- BuildOps Database Schema
 -- Source of truth for all domain entities
 
 -- Customers table

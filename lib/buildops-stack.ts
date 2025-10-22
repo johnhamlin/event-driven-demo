@@ -64,7 +64,7 @@ export class BuildOpsStack extends cdk.Stack {
     );
 
     // ============================================
-    // 4. Lambda Functions (No VPC needed!)
+    // 4. Lambda Functions
     // ============================================
 
     // --- API Lambda (GraphQL) ---

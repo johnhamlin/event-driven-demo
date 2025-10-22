@@ -6,9 +6,6 @@
   "directories": {
     "lib": "lib"
   },
-  "scripts": {
-    "build-lambdas": "cd lambda/api && npm run build && cd ../publisher && npm run build && cd ../shared&& cd ../projector && npm run build && cd ../.."
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
