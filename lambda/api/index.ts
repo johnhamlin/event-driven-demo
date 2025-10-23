@@ -169,13 +169,14 @@ const resolvers = {
         );
         const createdWorkOrder = res.rows[0];
 
+        const eventType = "WorkOrderCreated";
         await client.query<OutboxEvent>(
           `INSERT INTO outbox (event_type, aggregate_id, aggregate_type, payload, trace_id)
             VALUES ($1, $2, $3, $4, $5)`,
           [
-            "WorkOrderCreated",
-            createdWorkOrder.id,
-            "WorkOrder",
+            eventType,
+            createdWorkOrder.id, // aggregate_id
+            "WorkOrderCreated", // aggregate_type
             JSON.stringify(createdWorkOrder),
             traceId,
           ],
@@ -187,6 +188,7 @@ const resolvers = {
           traceId,
           orgId: args.orgId,
           customerId: args.customerId,
+          eventType,
         });
         return {
           ...createdWorkOrder,

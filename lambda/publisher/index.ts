@@ -32,6 +32,7 @@ export const handler: AWSLambda.Handler = async (_, context) => {
   const logger = new Logger("publisher", context.awsRequestId);
 
   try {
+    // Get 10 oldest, unpublished rows from outbox
     const res = await client.query<OutboxEvent>(`
       SELECT * from outbox WHERE published_at IS NULL
         ORDER BY occurred_at ASC
